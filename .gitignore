@@ -1,0 +1,29 @@
+# 忽略编译生成的文件
+*.o
+*.a
+*.so
+*.exe
+*.out
+
+# 忽略构建目录
+build/
+bin/
+obj/
+
+# 忽略 IDE 或编辑器生成的文件
+.vscode/
+.vs/
+*.suo
+*.user
+
+# 忽略日志文件
+*.log
+
+# 忽略依赖目录
+deps/
+vendor/
+
+# 忽略其他临时文件
+*.swp
+*.swo
+*~
