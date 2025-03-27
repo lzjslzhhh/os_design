@@ -73,9 +73,10 @@ git checkout -b shucanyang
 ```
 **不要照着打命令，现在已经有shucanyang这个分支了，请自己创建自己的分支**
 
-如果你已经有了自己的分支，那么执行以下命令合并main分支上可能有的新提交：
+如果你已经有了自己的分支，那么执行以下命令从而删除原有的自己的分支，并基于最新的main创建一个自己的新分支：
 ```
-git merge main
+git branch -d shucanyang
+git checkout -b shucanyang
 ```
 
 4. 进行具体开发：这一步你会修改文件，创建文件等
