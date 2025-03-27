@@ -72,6 +72,7 @@ git pull
 git checkout -b shucanyang
 ```
 **不要照着打命令，现在已经有shucanyang这个分支了，请自己创建自己的分支**
+
 如果你已经有了自己的分支，那么执行以下命令合并main分支上可能有的新提交：
 ```
 git merge main
@@ -79,7 +80,7 @@ git merge main
 
 4. 进行具体开发：这一步你会修改文件，创建文件等
 
-5. 提交修改：首先保证自己在./src文件夹里，然后执行命令：
+5. 提交修改：
 ```
 git add . 
 git commit -m "这里写你这次提交新增了什么修改等描述性文字"
@@ -104,4 +105,4 @@ git checkout shucanyang
 git merge main
 ```
 
-10. 后续开发：回到步骤四即可。
+10. 后续开发：回到步骤4即可。
