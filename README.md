@@ -91,18 +91,19 @@ git commit -m "这里写你这次提交新增了什么修改等描述性文字"
 git push origin shucanyang
 ```
 
+
 7. 审核并合并：在github的仓库处创建PR/MR，然后合并到main分支上
 
-8. 在main分支上拉取最新更新：
+8. 回到main分支，拉取main最新更新：
 ```
 git checkout main
 git pull
 ```
 
-9. 将更新合并到自己的分支，保证自己的修改基于的内容是最新的：
+9. 删除之前自己创建的分支，并在最新的main上创建新的分支：
 ```
-git checkout shucanyang
-git merge main
+git branch -d shucanyang
+git checkout -b shucanyang
 ```
 
 10. 后续开发：回到步骤4即可。
