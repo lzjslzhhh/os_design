@@ -5,6 +5,6 @@ void start_shell(void)
     while(1)
     {
         scanf("%s", input);
-        printf("%s", input);
+        printf("%s\n", input);
     }
 }
