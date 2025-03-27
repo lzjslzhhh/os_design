@@ -1,12 +1,11 @@
 #include<stdio.h>
-const int maxm = 100;
+#include<string.h>
 int main(void)
 {
-    char input[maxm];
-    while(1)
-    {
-        scanf("%s", input);
-        printf("%s\n", input);
-    }
+    printf("start BUPTscsOS\n");
+    init_memory();
+    init_file_system();
+    init_thread_manager();
+    start_shell();
     return 0;
 }
