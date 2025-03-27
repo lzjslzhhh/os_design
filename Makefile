@@ -2,7 +2,7 @@
 CC = gcc
 
 # 编译选项
-CFLAGS = -Wall -Wextra -O2 -I./src -m32# 32位操作系统
+CFLAGS = -Wall -Wextra -O2 -I./src
 
 # 源文件目录
 SRC_DIR = src

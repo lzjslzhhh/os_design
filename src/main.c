@@ -7,9 +7,7 @@
 int main(void)
 {
     printf("start BUPTscsOS\n");
-    kinit();//初始化内核内存
-    // init_memory();
-
+    init_memory();
     init_file_system();
     init_thread_manager();
     start_shell();
