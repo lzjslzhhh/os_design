@@ -1,0 +1,13 @@
+#define NPROC        64  // 最大进程数
+#define KSTACKSIZE 4096  // 每个进程内核栈的大小
+#define NCPU          8  // 最大cpu数
+#define NOFILE       16  // 每个进程最大文件数
+#define NFILE       100  // 系统最大文件数
+#define NINODE       50  // 最大打开文件索引节点数
+#define NDEV         10  // 最大主要设备数
+#define ROOTDEV       1  // 文件系统根磁盘设备号
+#define MAXARG       32  // 最大可执行参数数
+#define MAXOPBLOCKS  10  // 任意文件操作最大写入块数
+#define LOGSIZE      (MAXOPBLOCKS*3)  // 磁盘日志最大数据块数
+#define NBUF         (MAXOPBLOCKS*3)  // 磁盘块缓存大小
+#define FSSIZE       1000  // 文件系统最大块数

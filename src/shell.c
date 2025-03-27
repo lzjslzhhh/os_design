@@ -1,5 +1,6 @@
 #include<stdio.h>
 #include<string.h>
+#include "shell.h"
 void start_shell(void)
 {
     char input[256];
