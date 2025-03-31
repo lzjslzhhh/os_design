@@ -3,7 +3,7 @@
 #include"filesys.h"
 #include"memory.h"
 #include"shell.h"
-#include"thread.h"
+#include"process.h"
 int main(void)
 {
     printf("start BUPTscsOS\n");
