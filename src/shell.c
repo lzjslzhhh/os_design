@@ -1,10 +1,14 @@
 #include<stdio.h>
 #include<string.h>
+#include"process.h"
+#include"memory.h"
+#include"filesys.h"
 void start_shell(void)
 {
     char input[256];
     while(1)
     {
+        //暂时先用scanf读取，后续再改进为fget
         scanf("%s", input);
         if(strcmp(input, "ls") == 0)
         {
@@ -12,8 +16,21 @@ void start_shell(void)
         }
         else if(strcmp(input, "mem") == 0)
         {
+            print_memory_information();
             //show memory status
         }
-        printf("%s\n", input);
+        else if(strcmp(input, "run1") == 0)
+        {
+            //运行测试任务1
+            testing_task_1();
+        }
+        else if(strcmp(input, "run2") == 0)
+        {
+            testing_task_2();
+        }
+        else
+        {
+            printf("no such command:%s\n", input);
+        }
     }
 }

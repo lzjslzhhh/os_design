@@ -1,9 +1,9 @@
 #include<stdio.h>
 #include<string.h>
 #include"filesys.h"
+#include"process.h"
 #include"memory.h"
 #include"shell.h"
-#include"process.h"
 int main(void)
 {
     printf("start BUPTscsOS\n");
