@@ -62,9 +62,9 @@ void visit_logical_memory_page(int logical_page, PCB *process,int write_flag); /
 void print_page_table(PCB *process);                            // 打印页表
 int select_victim_page(PageTable *pt);                          // 选择一个被修改过的页面
 
-int sys_handle_page_fault(int logical_page, int pid);
-int sys_get_physical_page_status(int physical_page_id, int *valid_bit, int *modified);
-int sys_clear_page_table(int pid);
+int sys_handle_page_fault(int logical_page, int pid);           // 系统调用处理缺页
+int sys_get_physical_page_status(int physical_page_id, int *valid_bit, int *modified);  // 系统调用获取物理页框状态
+int sys_clear_page_table(int pid);                              // 系统调用清除页表
 
 void memory_testing_task_1(void);                               // 测试用例1    
 void memory_testing_task_2(void);                               // 测试用例2
