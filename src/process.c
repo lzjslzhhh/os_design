@@ -216,7 +216,7 @@ void testing_task_2()
     for (int i=0;i<testing_length; i++)
     {
         print_process_information();
-        visit_logical_memory_page(testing_page_sequence[i], process);
+        visit_logical_memory_page(testing_page_sequence[i], process,0);
         print_process_information();
     }
     delete_process(process);

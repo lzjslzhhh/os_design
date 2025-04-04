@@ -3,14 +3,6 @@
 #include"memory.h"
 #include"process.h"
 
-#define PAGE_SIZE 1024                  // 页面大小
-#define PHYSICAL_MEMORY_SIZE (1<<22)    // 物理内存大小
-#define LOGICAL_MEMORY_SIZE (1<<28)     // 逻辑内存大小
-#define NO_PHYSICAL_PAGE -2             // 当前页表项没有映射到物理页（关于为什么设置为-2，因为初始化驻留集时值为-1，这样设置可以避免冲突）
-#define INVALID 0                       // 当前页表项无效
-#define NOT_MODIFIED 0                  // 当前页表项对应的内存没有被修改（即没有进行写操作）
-
-
 PhysicalPage *free_page_list = NULL;    // 记录目前空闲的页表，单向链表
 PhysicalPage *using_page_list = NULL;   // 记录已被分配的页表，双向链表
 
@@ -51,7 +43,7 @@ void init_memory(void)
 PhysicalPage* allocate_physical_memory()
 {
     //这里的分配物理内存只是一个很简单的实现，并没有采用FIFO
-    printf("start allocating physical memory.\n");
+    printf("\nstart allocating physical memory.\n");
     //从free_page_list中分配一个物理页给请求者，返回值为物理页框
     if (free_page_list == NULL)
     {
@@ -74,14 +66,14 @@ PhysicalPage* allocate_physical_memory()
     page -> next = using_page_list;
     using_page_list = page;
 
-    printf("finish allocating physical memory, page frame id %d.\n", allocated_page_frame_id);
+    printf("\nfinish allocating physical memory, page frame id %d.\n", allocated_page_frame_id);
     return page;
 }
 
 void free_physical_memory(int physical_page_id)
 {
     //根据物理页号来释放对应的物理页
-    printf("start to free physical memory, page id = %d\n", physical_page_id);
+    printf("\nstart to free physical memory, page id = %d\n", physical_page_id);
     //同样的，释放物理内存时要删除使用页链表里的表项，并插入在空闲页的链表头
     if (using_page_list == NULL)
     {
@@ -123,42 +115,62 @@ void free_physical_memory(int physical_page_id)
 
 PageTable* create_page_table(int pid)
 {
-    printf("start to create page table of process %d.\n", pid);
+    printf("\nstart to create 2-level page table of process %d.\n", pid);
     PageTable *pt = (PageTable*)malloc(sizeof(PageTable));
-    for(int i=0; i < (LOGICAL_MEMORY_SIZE / PAGE_SIZE); i++)
+    for(int i=0; i < FIRST_LEVEL_SIZE; i++)
     {
-        pt->entries[i].page_number = i;                     // 页号=数组下标
-        pt->entries[i].physical_page = NO_PHYSICAL_PAGE;    // 目前还未映射物理页
-        pt->entries[i].valid_bit = INVALID;                 // 无效
-        pt->entries[i].modified = NOT_MODIFIED;             // 未修改
+        pt->entries[i]=NULL;              
     }
     printf("finish creating page table of process %d.\n", pid);
     return pt;
+}
+
+PageTableEntry* get_page_table_entry(PageTable *pt, int logical_page, bool allocate_if_missing)
+{
+    int level1_index = (logical_page >> 9) & 0x1FF;
+    int level2_index = logical_page & 0x1FF;
+
+    if(pt->entries[level1_index] == NULL)
+    {
+        if(!allocate_if_missing) return NULL;
+        pt->entries[level1_index] = (SecondLevelPageTable*)malloc(sizeof(SecondLevelPageTable));
+        for(int i=0; i < SECOND_LEVEL_SIZE; i++)
+        {
+            pt->entries[level1_index]->entries[i].valid_bit = INVALID;
+            pt->entries[level1_index]->entries[i].physical_page = NO_PHYSICAL_PAGE;
+            pt->entries[level1_index]->entries[i].modified = NOT_MODIFIED;
+        }
+    }
+    return &(pt->entries[level1_index]->entries[level2_index]);
 }
 
 void free_page_table(int pid, PageTable * pt)
 {
     if(pt == NULL)
     {
-        printf("freeing process %d 's page table failed.\n", pid);
+        printf("\nfreeing process %d 's page table failed.\n", pid);
         return;
     }
 
-    for(int i=0; i < (LOGICAL_MEMORY_SIZE / PAGE_SIZE); i++)
-    {
-        if (pt->entries[i].valid_bit == 1)
-        {
-            free_physical_memory(pt->entries[i].physical_page);
+    for(int i = 0; i < FIRST_LEVEL_SIZE; i++) {
+        SecondLevelPageTable *second = pt->entries[i];
+        if(second == NULL) continue;
+        for(int j = 0; j < SECOND_LEVEL_SIZE; j++) {
+            PageTableEntry *entry = &second->entries[j];
+            if(entry->valid_bit){
+                free_physical_memory(entry->physical_page);
+            }
         }
+        free(second);
     }
 
     free(pt);
-    printf("finish freeing process %d 's page table.\n", pid);
+    printf("\nfinish freeing process %d 's page table.\n", pid);
 }
 
 int handle_page_fault(int logical_page)
 {
-    printf("trigger a page fault when visiting logical page %d.\n", logical_page);
+    printf("\ntrigger a page fault when visiting logical page %d.\n", logical_page);
     PhysicalPage * pp = allocate_physical_memory();
     if(pp != NULL)
         return pp -> id;
@@ -166,30 +178,35 @@ int handle_page_fault(int logical_page)
         return NO_PHYSICAL_PAGE;
 }
 
-void visit_logical_memory_page(int logical_page, PCB *process)
+void visit_logical_memory_page(int logical_page, PCB *process ,int write_flag)
 {
-    printf("start to translate logical page %d into physical page.\n", logical_page);
-    if (logical_page >= (LOGICAL_MEMORY_SIZE / PAGE_SIZE))
+    printf("\nstart to translate logical page %d into physical page.\n", logical_page);
+    if (logical_page >= MAX_LOGICAL_PAGES)
     {
         //越界中断
-        printf("trigger a segmentation fault when visiting logical page %d.\n", logical_page);
+        printf("\ntrigger a segmentation fault when visiting logical page %d.\n", logical_page);
         return;
     }
 
     //这里没有TLB的设计，因此直接访问页表
-    PageTable *pt = process -> pt;
-
-    int physical_page_id = pt->entries[logical_page].physical_page;
-    int valid_bit = pt->entries[logical_page].valid_bit;
+    // PageTable *pt = process -> pt;
+    PageTableEntry *entry = get_page_table_entry(process -> pt, logical_page, true);
+    int physical_page_id = entry->physical_page;
+    int valid_bit = entry->valid_bit;
+    if(entry == NULL)
+    {
+        printf("trigger a segmentation fault when visiting logical page %d.\n", logical_page);
+        return;
+    }
 
     //先检查该页是否在驻留集中
-    bool check_ppi_in_rss = 0;
+    bool check_ppi_in_rss = false;
     for(int i=0; i<RESIDENT_SET_SIZE; i++)
     {
         if(process -> resident_set[i] == physical_page_id)
         {
             //该物理页在驻留集中
-            check_ppi_in_rss = 1;
+            check_ppi_in_rss = true;
             break;
         }
     }
@@ -212,46 +229,129 @@ void visit_logical_memory_page(int logical_page, PCB *process)
             return;
         }
 
-        pt->entries[logical_page].physical_page = physical_page_id;
-
-        //（虽然前面检查是否命中是是三个条件（check_ppi_in_rss && valid_bit && physical_page_id != NO_PHISYCAL_PAGE）一起检查）
-        pt->entries[logical_page].valid_bit = 1;
-
-        pt->entries[logical_page].modified = NOT_MODIFIED;
-
         //更新该进程的驻留集情况
         //简单的使用FIFO对驻留集进行管理
         int victim_physical_page = process -> resident_set[process -> rss_ptr];
         if (victim_physical_page != -1)
         {
             //找到要被替换出去的物理页所映射的逻辑页
-            printf("the victim physical page %d need to be swapped out.\n", victim_physical_page);
-            for(int i=0; i < (LOGICAL_MEMORY_SIZE / PAGE_SIZE); i++)
-            {
-                if(victim_physical_page == pt->entries[i].physical_page)
-                {
-                    //该物理页被换出，对应逻辑页的有效位设置为无效，映射置为无映射
-                    pt->entries[i].valid_bit = 0;
-                    pt->entries[i].physical_page = NO_PHYSICAL_PAGE;
-
-                    //如果这个页被修改过，那么需要额外写内存
-                    if(pt->entries[i].modified != NOT_MODIFIED)
-                    {
-                        //这里只是简单输出个语句表示写回外存（磁盘）
-                        printf("the victim physical page %d has been modified.\n", victim_physical_page);
-                        printf("write back into disk.\n");
+            printf("\nthe victim physical page %d need to be swapped out.\n", victim_physical_page);
+            for (int i = 0; i < FIRST_LEVEL_SIZE; i++) {
+                SecondLevelPageTable *second = process->pt->entries[i];
+                if(second==NULL) continue;
+                for(int j = 0; j < SECOND_LEVEL_SIZE; j++) {
+                    PageTableEntry *victim_entry = &second->entries[j];
+                    if  (victim_entry->physical_page == victim_physical_page) {
+                        victim_entry->valid_bit = INVALID;
+                        victim_entry->physical_page = NO_PHYSICAL_PAGE;
+                        if (victim_entry->modified!=NOT_MODIFIED) {
+                            printf("the victim physical page %d has been modified.\n", victim_physical_page);
+                            printf("write back into disk.\n");
+                            // 这里要补充写回逻辑
+                        }
+                        victim_entry->modified = NOT_MODIFIED;
+                        free_physical_memory(victim_physical_page);
                     }
-                    
-                    pt->entries[i].modified = NOT_MODIFIED;
-                    //被换出的页可以释放，不考虑共享页
-                    free_physical_memory(victim_physical_page);
                 }
             }
         }
+
+        entry->physical_page = physical_page_id;
+
+        //（虽然前面检查是否命中是是三个条件（check_ppi_in_rss && valid_bit && physical_page_id != NO_PHISYCAL_PAGE）一起检查）
+        entry->valid_bit = VALID;
+        entry->modified = NOT_MODIFIED;
         //更新驻留集
-        process -> resident_set[process -> rss_ptr] = pt->entries[logical_page].physical_page;
+        process -> resident_set[process -> rss_ptr] = physical_page_id;
         process -> rss_ptr = (process -> rss_ptr + 1) % RESIDENT_SET_SIZE;
     }
 
-    printf("finish translating logical page %d into physical page %d.\n", logical_page, physical_page_id);
+    if (write_flag) {
+        entry->modified = MODIFIED;
+    }
+
+    printf("\nfinish translating logical page %d into physical page %d.\n", logical_page, physical_page_id);
+}
+
+void print_page_table(PCB *process) {
+    printf("Page Table for Process %d:\n", process->pid);
+    printf("Logical Page | Physical Page | Valid | Modified\n");
+    printf("------------------------------------------------\n");
+    
+    for(int i = 0; i < FIRST_LEVEL_SIZE; i++) {
+        SecondLevelPageTable *second = process->pt->entries[i];
+        if(second==NULL) continue;
+        for(int j = 0; j < SECOND_LEVEL_SIZE; j++) {
+            PageTableEntry *entry = &second->entries[j];
+            if (entry->valid_bit) {
+                int logical_page = (i << 9) | j;
+                printf("%12d | %13d | %5d | %8d\n", 
+                    logical_page, entry->physical_page, entry->valid_bit, entry->modified);
+            }
+        }
+    }
+    printf("------------------------------------------------\n");
+}
+
+int select_victim_page(PageTable *pt){
+
+
+}
+
+//  访问合法逻辑页，不触发缺页
+void memory_testing_task_1(void)
+{
+    init_memory();
+    PCB *process = create_process(1, 100);
+    visit_logical_memory_page(0, process,0);
+    visit_logical_memory_page(0, process,1);
+}
+
+//  测试驻留集大小限制、FIFO 替换策略、页写回、页表更新。
+void memory_testing_task_2(void)
+{
+    init_memory();
+    PCB* process = create_process(1, 500);
+    int testing_page_sequence[8] = {1,2,3,4,1,2,7,8};
+    int testing_length = 8;
+    visit_logical_memory_page(testing_page_sequence[0], process, 1);
+    for (int i=1;i<testing_length; i++)
+    {
+        print_process_information();
+        visit_logical_memory_page(testing_page_sequence[i], process,0);
+        print_process_information();
+    }
+    delete_process(process);
+}
+
+//  测试逻辑页边界是否合法，避免数组越界或非法内存访问
+void memory_testing_task_3(void)
+{
+    init_memory();
+    PCB* process = create_process(1, 500);
+    visit_logical_memory_page(MAX_LOGICAL_PAGES, process,1);
+    visit_logical_memory_page(MAX_LOGICAL_PAGES-1, process,1);
+}
+
+//  验证多进程各自维护驻留集和页表，不会相互影响
+void memory_testing_task_4(void)
+{
+    init_memory();
+    PCB* process = create_process(1, 500);
+    PCB* process2 = create_process(1, 500);
+    visit_logical_memory_page(0, process,1);
+    visit_logical_memory_page(0, process2,1);
+}
+
+void memory_testing_task_5(void)
+{
+
+}
+int main(void)
+{
+    // memory_testing_task_1();     // 预期输出:第二次访问应命中页表和驻留集，不触发缺页
+    // memory_testing_task_2();     // 预期输出:触发页替换，且页0被写入磁盘后释放     
+    // memory_testing_task_3();     // 预期输出:访问非法页，程序崩溃
+    // memory_testing_task_4();     // 两个进程应有不同的物理页，互不干扰
+    // memory_testing_task_5();
 }
