@@ -339,19 +339,19 @@ void memory_testing_task_4(void)
     init_memory();
     PCB* process = create_process(1, 500);
     PCB* process2 = create_process(1, 500);
-    visit_logical_memory_page(0, process,1);
-    visit_logical_memory_page(0, process2,1);
+    visit_logical_memory_page(0, process, 1);
+    visit_logical_memory_page(0, process2, 1);
 }
 
 void memory_testing_task_5(void)
 {
 
 }
-int main(void)
-{
-    // memory_testing_task_1();     // 预期输出:第二次访问应命中页表和驻留集，不触发缺页
-    // memory_testing_task_2();     // 预期输出:触发页替换，且页0被写入磁盘后释放     
-    // memory_testing_task_3();     // 预期输出:访问非法页，程序崩溃
-    // memory_testing_task_4();     // 两个进程应有不同的物理页，互不干扰
-    // memory_testing_task_5();
-}
+// int main(void)
+// {
+//     // memory_testing_task_1();     // 预期输出:第二次访问应命中页表和驻留集，不触发缺页
+//     // memory_testing_task_2();     // 预期输出:触发页替换，且页0被写入磁盘后释放     
+//     // memory_testing_task_3();     // 预期输出:访问非法页，程序崩溃
+//     // memory_testing_task_4();     // 两个进程应有不同的物理页，互不干扰
+//     // memory_testing_task_5();
+// }
