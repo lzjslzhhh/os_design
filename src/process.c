@@ -75,6 +75,7 @@ PCB* create_process(int priority, int time)
     new_process -> rss_ptr = 0;
     memset(new_process -> resident_set, -1, sizeof(new_process -> resident_set));
     new_process -> pt = create_page_table(new_process -> pid);
+    new_process -> tlb = create_tlb(new_process -> pid); 
     new_process -> qnext = NULL;
 
     //将该进程插入到目前已创建的进程链表中，便于统一打印其状态
@@ -122,6 +123,7 @@ void delete_process(PCB* process)
 
     //删除该项后，释放创建该进程所占用的内存，注意物理页的释放包含在了释放页表的函数里，不需要单独写
     free_page_table(process -> pid, process -> pt);
+    free_tlb(process -> tlb);
     printf("finish freeing process %d.\n", process -> pid);
     free(process);
 }
@@ -169,55 +171,54 @@ PCB * dequeue_fcfsQ()
     }
 }
 
+// void testing_task_1()
+// {
+//     //这里先实现一个非常简单的FCFS，而且进程同时开始，只涉及进程调度，不涉及内存
+//     printf("now begin the testing task 1.\n");
+//     PCB* process_1 = create_process(1, 1000);
+//     PCB* process_2 = create_process(2, 1000);
+//     enqueue_fcfsQ(process_1);
+//     enqueue_fcfsQ(process_2);
 
-void testing_task_1()
-{
-    //这里先实现一个非常简单的FCFS，而且进程同时开始，只涉及进程调度，不涉及内存
-    printf("now begin the testing task 1.\n");
-    PCB* process_1 = create_process(1, 1000);
-    PCB* process_2 = create_process(2, 1000);
-    enqueue_fcfsQ(process_1);
-    enqueue_fcfsQ(process_2);
+//     PCB * current_process = dequeue_fcfsQ();
+//     while(current_process != NULL)
+//     {
+//         print_process_information();
+//         printf("FCFS: now begin to run process %d.\n", current_process -> pid);
+//         //通过睡眠来模拟处理
+//         current_process -> process_state = RUNNING;
+//         printf("process %d 's state changed into RUNNING.\n", current_process -> pid);
 
-    PCB * current_process = dequeue_fcfsQ();
-    while(current_process != NULL)
-    {
-        print_process_information();
-        printf("FCFS: now begin to run process %d.\n", current_process -> pid);
-        //通过睡眠来模拟处理
-        current_process -> process_state = RUNNING;
-        printf("process %d 's state changed into RUNNING.\n", current_process -> pid);
+//         usleep((current_process -> time_need)*TIME_UNIT);
+//         current_process -> time_used = current_process -> time_need;
+//         current_process -> time_need = 0;
 
-        usleep((current_process -> time_need)*TIME_UNIT);
-        current_process -> time_used = current_process -> time_need;
-        current_process -> time_need = 0;
+//         printf("FCFS: now finish running process %d.\n", current_process -> pid);
 
-        printf("FCFS: now finish running process %d.\n", current_process -> pid);
+//         //执行完后删除释放该进程
+//         printf("process %d 's state changed into READY.\n", current_process -> pid);
+//         print_process_information();
 
-        //执行完后删除释放该进程
-        printf("process %d 's state changed into READY.\n", current_process -> pid);
-        print_process_information();
+//         delete_process(current_process);
 
-        delete_process(current_process);
+//         print_process_information();
+//         current_process = dequeue_fcfsQ();
 
-        print_process_information();
-        current_process = dequeue_fcfsQ();
+//     }
+// }
 
-    }
-}
-
-void testing_task_2()
-{
-    //这里简单测试内存管理的内容
-    printf("now begin the testing task 2.\n");
-    PCB* process = create_process(1, 500);
-    int testing_page_sequence[8] = {1,2,3,4,1,2,7};
-    int testing_length = 8;
-    for (int i=0;i<testing_length; i++)
-    {
-        print_process_information();
-        visit_logical_memory_page(testing_page_sequence[i], process,0);
-        print_process_information();
-    }
-    delete_process(process);
-}
+// void testing_task_2()
+// {
+//     //这里简单测试内存管理的内容
+//     printf("now begin the testing task 2.\n");
+//     PCB* process = create_process(1, 500);
+//     int testing_page_sequence[8] = {1,2,3,4,1,2,7};
+//     int testing_length = 8;
+//     for (int i=0;i<testing_length; i++)
+//     {
+//         print_process_information();
+//         visit_logical_memory_page(testing_page_sequence[i], process);
+//         print_process_information();
+//     }
+//     delete_process(process);
+// }
