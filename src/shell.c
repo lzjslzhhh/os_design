@@ -19,34 +19,44 @@ void start_shell(void)
             print_memory_information();
             //show memory status
         }
-        else if(strcmp(input, "run1") == 0)
+        else if (strcmp(input, "run1") == 0)
         {
-            //运行测试任务1
-            testing_task_1();
-        }
-        else if(strcmp(input, "run2") == 0)
-        {
-            testing_task_2();
-        }
-        else if(strcmp(input, "memtest1") == 0)
-        {
+            // 运行测试任务
             memory_testing_task_1();
         }
-        else if(strcmp(input, "memtest2") == 0)
+        // 独立测试
+        // TLB 测试用例
+        // 1.基础功能测试
+        else if (strcmp(input, "tlb1") == 0)
         {
-            memory_testing_task_2();
+            test_TLB_1_1(); // TLB 未满时插入页号
+            test_TLB_1_2(); // TLB 满时随机置换
+            test_TLB_1_3(); // 查询命中
+            test_TLB_1_4(); // 查询未命中
         }
-        else if(strcmp(input, "memtest3") == 0)
+        // 2.性能与随机性测试
+        else if (strcmp(input, "tlb2")==0)
         {
-            memory_testing_task_3();
+            test_TLB_2_1(); // 重复页号插入
+            test_TLB_2_2(); // 随机置换均匀性验证
         }
-        else if(strcmp(input, "memtest4") == 0)
+        // 3.边界与异常测试
+        else if (strcmp(input, "tlb3")==0)
         {
-            memory_testing_task_4();
+            test_TLB_3_1(); // 非法页号处理
+            test_TLB_3_2(); // 满表重复页号
         }
-        else if(strcmp(input, "memtest5") == 0)
+        // // 联合测试
+        // // 1.进程上下文切换与 TLB 测试
+        // else if (strcmp(input, "test1")==0)
+        // {
+        //     test_1_1(); // 进程切换时TLB刷新验证
+        //     test_1_2(); // ASID支持验证
+        // }
+        else if (strcmp(input, "exit") == 0)
         {
-            memory_testing_task_5();
+            printf("exit the shell.\n");
+            break;
         }
         else
         {

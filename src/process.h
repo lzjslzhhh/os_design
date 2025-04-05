@@ -28,6 +28,7 @@ typedef struct pcb{
     PageTable *pt;                      // 该进程的页表
     PCB *next;                          // 仍然是用链表的形式对PCB进行管理
     PCB *qnext;                         // 记录在（RR/FCFS）队列中的下一个元素
+    TLB *tlb;                            // TLB
 }PCB;
 
 //第一种管理方式，使用时间片轮转进行管理
