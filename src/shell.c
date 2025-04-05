@@ -53,6 +53,26 @@ void start_shell(void)
         //     test_1_1(); // 进程切换时TLB刷新验证
         //     test_1_2(); // ASID支持验证
         // }
+        else if(strcmp(input, "memtest1") == 0)
+        {
+            memory_testing_task_1();
+        }
+        else if(strcmp(input, "memtest2") == 0)
+        {
+            memory_testing_task_2();
+        }
+        else if(strcmp(input, "memtest3") == 0)
+        {
+            memory_testing_task_3();
+        }
+        else if(strcmp(input, "memtest4") == 0)
+        {
+            memory_testing_task_4();
+        }
+        else if(strcmp(input, "memtest5") == 0)
+        {
+            memory_testing_task_5();
+        }
         else if (strcmp(input, "exit") == 0)
         {
             printf("exit the shell.\n");

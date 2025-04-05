@@ -22,6 +22,7 @@ typedef struct pcb PCB;
 #define NOT_MODIFIED 0                  // 当前页表项对应的内存没有被修改（即没有进行写操作）
 #define RESIDENT_SET_SIZE 4             // 驻留集大小（假设值，需与实际实现一致）
 #define TLB_SIZE 10                     // TLB条目数量
+
 //物理地址管理
 // 使用链表这一数据结构来管理物理内存，并且直接以页为单位来进行管理
 typedef struct PhysicalPage {
@@ -99,7 +100,14 @@ void test_TLB_2_1();
 void test_TLB_2_2();
 void test_TLB_3_1();
 void test_TLB_3_2();
-void memory_testing_task_1();
+void test_LRU_1();
+void test_LRU_2();
+void test_LRU_3();
+void memory_testing_task_1(void);
+void memory_testing_task_2(void);                               // 测试用例2
+void memory_testing_task_3(void);                               // 测试用例3
+void memory_testing_task_4(void);                               // 测试用例4   
+void memory_testing_task_5(void);
 // 全局变量声明（应在.c文件中定义）
 extern PhysicalPage *free_page_list;
 extern PhysicalPage *using_page_list;

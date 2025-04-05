@@ -769,3 +769,53 @@ void test_TLB_3_2()
         printf("Test FAILED: Page 1 should exist exactly once in TLB\n");
     }
 }
+
+//  访问合法逻辑页，不触发缺页
+void memory_testing_task_1(void)
+{
+    init_memory();
+    PCB *process = create_process(1, 100);
+    visit_logical_memory_page(0, process,0);
+    visit_logical_memory_page(0, process,1);
+}
+
+//  测试驻留集大小限制、FIFO 替换策略、页写回、页表更新。
+void memory_testing_task_2(void)
+{
+    init_memory();
+    PCB* process = create_process(1, 500);
+    int testing_page_sequence[8] = {1,2,3,4,1,2,7,8};
+    int testing_length = 8;
+    visit_logical_memory_page(testing_page_sequence[0], process, 1);
+    for (int i=1;i<testing_length; i++)
+    {
+        print_process_information();
+        visit_logical_memory_page(testing_page_sequence[i], process,0);
+        print_process_information();
+    }
+    delete_process(process);
+}
+
+//  测试逻辑页边界是否合法，避免数组越界或非法内存访问
+void memory_testing_task_3(void)
+{
+    init_memory();
+    PCB* process = create_process(1, 500);
+    visit_logical_memory_page(MAX_LOGICAL_PAGES, process,1);
+    visit_logical_memory_page(MAX_LOGICAL_PAGES-1, process,1);
+}
+
+//  验证多进程各自维护驻留集和页表，不会相互影响
+void memory_testing_task_4(void)
+{
+    init_memory();
+    PCB* process = create_process(1, 500);
+    PCB* process2 = create_process(1, 500);
+    visit_logical_memory_page(0, process, 1);
+    visit_logical_memory_page(0, process2, 1);
+}
+
+void memory_testing_task_5(void)
+{
+
+}
