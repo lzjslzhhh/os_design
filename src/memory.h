@@ -15,6 +15,7 @@ typedef struct pcb PCB;
 #define SECOND_LEVEL_SIZE 512           // 二级页表大小
 #define MAX_LOGICAL_PAGES (LOGICAL_MEMORY_SIZE / PAGE_SIZE) // 逻辑内存页数（262144）
 #define MAX_PHYSICAL_PAGES (PHYSICAL_MEMORY_SIZE / PAGE_SIZE) // 物理内存页数（4096）
+// #define MAX_PHYSICAL_PAGES 5
 #define NO_PHYSICAL_PAGE -2                                 // 当前页表项没有映射到物理页（关于为什么设置为-2，因为初始化驻留集时值为-1，这样设置可以避免冲突）
 #define INVALID 0                       // 当前页表项无效
 #define VALID 1                         // 当前页表项有效
@@ -52,6 +53,31 @@ typedef struct
     SecondLevelPageTable *entries[FIRST_LEVEL_SIZE];
 } PageTable;
 
+// 页面替换策略枚举类型
+typedef enum {
+    REPLACEMENT_FIFO,
+    REPLACEMENT_LRU
+} ReplacementPolicy;
+
+extern ReplacementPolicy current_policy; // 当前置换策略（全局）
+
+// 双端队列节点
+typedef struct PageNode {
+    int physical_page_id;
+    struct PageNode *prev;
+    struct PageNode *next;
+} PageNode;
+
+// 双端队列，用于LRU或FIFO
+typedef struct {
+    PageNode *front;
+    PageNode *rear;
+    int size;
+} PageQueue;
+
+extern PageQueue *physical_page_queue;
+extern PageQueue *resident_set_queue;
+
 // TLB
 typedef struct
 {
@@ -81,6 +107,17 @@ void visit_logical_memory_page(int logical_page, PCB *process, int write_flag); 
 void print_page_table(PCB *process);                                                             // 打印页表
 int select_victim_page(PageTable *pt);                                                           // 选择一个被修改过的页面
 
+PageQueue* create_page_queue();                                                      // 分配并初始化双端队列
+PageNode* create_page_node(int physical_page_id);                                    // 创建一个新的页面节点
+PageNode* find_page_node(PageQueue *queue, int physical_page_id);                    // 查找页面节点(用于LRU)
+void move_to_front(PageQueue *queue, PageNode *node);                                // 将某个节点移动到队首(仅用于LRU)
+int evict_page_from_queue(PageQueue *queue, int max_capacity);                       // 返回淘汰页面的ID                           
+int insert_page(PageQueue *queue, int physical_page_id, int max_capacity);           // 插入一个页面节点到双端队列中
+void remove_page_from_queue(PageQueue *queue, int physical_page_id);                 // 从双端队列中删除一个页面节点
+void access_page(int physical_page_id);                                              // 访问页面节点(用于LRU)      
+void print_queue(PageQueue *queue);                                                  // 打印双端队列的调试函数
+void free_page_queue(PageQueue *queue);                                              // 释放双端队列
+
 void print_tlb(TLB *tlb);                                          // 打印TLB内容的调试函数                                                             // 打印TLB内容
 TLB *create_tlb(int pid);                                          // 初始化TLB
 int tlb_lookup(TLB *tlb, int virtual_page);                        // 查找TLB
@@ -100,9 +137,12 @@ void test_TLB_2_1();
 void test_TLB_2_2();
 void test_TLB_3_1();
 void test_TLB_3_2();
-void test_LRU_1();
-void test_LRU_2();
+void test_FIFO_replacement();
+void test_LRU_replacement();
 void test_LRU_3();
+// void test_FIFO_vs_LRU();
+// void test_policy_switch();
+// void test_eviction_order();
 void memory_testing_task_1(void);
 void memory_testing_task_2(void);                               // 测试用例2
 void memory_testing_task_3(void);                               // 测试用例3

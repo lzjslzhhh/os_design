@@ -10,6 +10,10 @@ PhysicalPage *using_page_list = NULL; // 记录已被分配的页表，双向链
 
 const int DEBUG = 1; // 调试开关，0表示关闭，1表示打开
 
+ReplacementPolicy current_policy = REPLACEMENT_LRU;
+PageQueue *physical_page_queue=NULL;
+PageQueue *resident_set_queue=NULL;
+
 void print_memory_information()
 {
     // 打印内存使用情况
@@ -30,17 +34,212 @@ void print_memory_information()
     printf("%d free pages, %d pages is being used.\n", cnt_free_page, cnt_using_page);
 }
 
+// 分配并初始化页面队列
+PageQueue* create_page_queue()
+{
+    PageQueue *queue = (PageQueue *)malloc(sizeof(PageQueue));
+    queue->front = NULL;
+    queue->rear = NULL;
+    queue->size = 0;
+    return queue;
+}
+
+// 创建一个新的页面节点
+PageNode* create_page_node(int physical_page_id)
+{
+    PageNode *node = (PageNode *)malloc(sizeof(PageNode));
+    node->physical_page_id = physical_page_id;
+    node->next = NULL;
+    node->prev = NULL;
+    return node;
+}
+
+// 查找页面节点（用于 LRU）
+PageNode* find_page_node(PageQueue *queue, int physical_page_id)
+{
+    PageNode *curr = queue->front;
+    while(curr){
+        if(physical_page_id == curr->physical_page_id) return curr;  
+        curr = curr->next;  
+    }
+    return NULL;
+}
+
+// 将某个节点移到队首（仅用于 LRU）
+void move_to_front(PageQueue *queue, PageNode *node) {
+    if (!node || queue->front == node) return;
+
+    // 断链
+    if (node->prev) node->prev->next = node->next;
+    if (node->next) node->next->prev = node->prev;
+
+    if (node == queue->rear)
+        queue->rear = node->prev;
+
+    // 插入队首
+    node->prev = NULL;
+    node->next = queue->front;
+    if (queue->front) queue->front->prev = node;
+    queue->front = node;
+}
+
+int evict_page_from_queue(PageQueue *queue,int max_capacity)
+{
+    if (!queue) queue = create_page_queue();
+
+    // 如果队列满，淘汰尾部节点（FIFO 或 LRU 都是处理尾部）
+    if (queue->size >= max_capacity) {
+        int evicted_ppn = queue->rear->physical_page_id;
+        PageNode *old_tail = queue->rear;
+
+        // 删除尾部节点
+        if (old_tail->prev) {
+            queue->rear = old_tail->prev;
+            queue->rear->next = NULL;
+        } else {
+            queue->front = queue->rear = NULL;
+        }
+
+        free(old_tail);
+        queue->size--;
+
+        return evicted_ppn;
+    }
+
+    return -1; // 队列未满时不进行淘汰
+}
+
+// 插入页面：统一入口，自动根据策略选择 FIFO 或 LRU
+// 如果有页面被淘汰，则返回被淘汰的物理页号；否则返回 -1
+int insert_page(PageQueue *queue,int physical_page_id, int max_capacity) {
+    if (!queue) queue = create_page_queue();
+
+    if (current_policy == REPLACEMENT_LRU) {
+        PageNode *existing = find_page_node(queue,physical_page_id);
+        if (existing) {
+            move_to_front(queue, existing);
+            return -1; // 没有淘汰页面
+        }
+    }
+
+    // 新建节点
+    PageNode *new_node = create_page_node(physical_page_id);
+
+    if (queue->size >= max_capacity) {
+        int evicted_ppn = -1;
+        
+        // 根据当前替换策略决定淘汰哪一页
+        if (current_policy == REPLACEMENT_FIFO) {
+        // FIFO: 淘汰队头节点
+        evicted_ppn = queue->front->physical_page_id;
+        PageNode *old_head = queue->front;
+        queue->front = old_head->next;
+            if (queue->front)
+                queue->front->prev = NULL;
+            else
+                queue->rear = NULL;  // 队列为空时，队头和队尾都为空
+                
+            free(old_head);
+            queue->size--;
+        } else if (current_policy == REPLACEMENT_LRU) {
+            // LRU: 淘汰队尾节点
+            evicted_ppn = queue->rear->physical_page_id;
+            PageNode *old_tail = queue->rear;
+            queue->rear = old_tail->prev;
+            if (queue->rear)
+                queue->rear->next = NULL;
+            else
+                queue->front = NULL;  // 队列为空时，队头和队尾都为空
+            
+            free(old_tail);
+            queue->size--;
+        }
+
+        // 插入新节点（FIFO 和 LRU 都插入队首）
+        new_node->next = queue->front;
+        if (queue->front)
+            queue->front->prev = new_node;
+        queue->front = new_node;
+        if (!queue->rear)
+            queue->rear = new_node;
+        queue->size++;
+        return evicted_ppn;  // 返回被淘汰的页面
+    }
+
+    // 如果队列未满，直接插入到队首（无论 FIFO 还是 LRU）
+    new_node->next = queue->front;
+    if (queue->front)
+        queue->front->prev = new_node;
+    queue->front = new_node;
+    if (!queue->rear)
+        queue->rear = new_node;
+    queue->size++;
+    return -1; // 没有淘汰页面
+}
+
+void remove_page_from_queue(PageQueue *queue, int physical_page_id) 
+{
+    if (!queue) return;
+
+    PageNode *current = queue->front;
+    while (current != NULL) {
+        if (current->physical_page_id == physical_page_id) {
+            if (current->prev) {
+                current->prev->next = current->next;
+            } else {
+                queue->front = current->next;
+            }
+
+            if (current->next) {
+                current->next->prev = current->prev;
+            } else {
+                queue->rear = current->prev;
+            }
+
+            free(current);
+            queue->size--;
+            break;
+        }
+        current = current->next;
+    }
+}
+
+// 打印当前队列内容（调试用）
+void print_queue(PageQueue *queue) {
+    PageNode *curr = queue->front;
+    printf("Current Queue (front to rear): ");
+    while (curr) {
+        printf("[%d] ", curr->physical_page_id);
+        curr = curr->next;
+    }
+    // printf("%d",current_policy);
+    printf("\n");
+}
+
+// 释放队列
+void free_page_queue(PageQueue *queue) {
+    PageNode *curr = queue->front;
+    while (curr) {
+        PageNode *temp = curr;
+        curr = curr->next;
+        free(temp);
+    }
+    free(queue);
+    queue = NULL;
+}
+
 void init_memory(void)
 {
     printf("start initializing physical memory.\n");
     // 其实就是初始化单链表的步骤
-    for (int i = PHYSICAL_MEMORY_SIZE / PAGE_SIZE - 1; i >= 0; i--)
+    for (int i = MAX_PHYSICAL_PAGES - 1; i >= 0; i--)
     {
         PhysicalPage *page = (PhysicalPage *)malloc(sizeof(PhysicalPage));
         page->id = i;
         page->next = free_page_list;
         free_page_list = page;
     }
+    physical_page_queue = create_page_queue();
     printf("finish initializing physical memory.\n");
 }
 
@@ -56,9 +255,27 @@ PhysicalPage *allocate_physical_memory()
         printf("no free page in memory.\n");
         printf("start to swap a page into the memory.\n");
 
-        // 待补充代码
+        // 使用当前策略（FIFO或LRU）来处理内存换出
+        int evicted_ppn = evict_page_from_queue(physical_page_queue, MAX_PHYSICAL_PAGES); // 使用 -1 来代表需要淘汰一个页面
+        if (evicted_ppn == -1) {
+            printf("Failed to allocate physical memory: No space for new page.\n");
+            return NULL;
+        }
 
-        return NULL;
+        // 根据淘汰的物理页号，更新页表并释放页面
+        free_physical_memory(evicted_ppn);
+
+        // 分配一个新的物理页
+        PhysicalPage *page = free_page_list;
+        free_page_list = free_page_list->next;
+        page->next = using_page_list;
+        using_page_list = page;
+
+        int allocated_page_frame_id = page->id;
+        printf("\nfinish allocating physical memory, page frame id %d.\n", allocated_page_frame_id);
+        
+        insert_page(physical_page_queue, allocated_page_frame_id, MAX_PHYSICAL_PAGES);
+        return page;
     }
 
     // 有空闲页的话，就将链表头指向的那一页分配出去，并将链表头指向下一页
@@ -71,6 +288,8 @@ PhysicalPage *allocate_physical_memory()
     using_page_list = page;
 
     printf("\nfinish allocating physical memory, page frame id %d.\n", allocated_page_frame_id);
+    
+    insert_page(physical_page_queue, allocated_page_frame_id, MAX_PHYSICAL_PAGES);
     return page;
 }
 
@@ -113,6 +332,26 @@ void free_physical_memory(int physical_page_id)
     // 将释放的页插入到空闲页的表头
     current->next = free_page_list;
     free_page_list = current;
+
+    // // 还需要从物理页队列中删除该物理页
+    // if (physical_page_queue != NULL) {
+    //     // 删除页面节点
+    //     PageNode *node_to_remove = find_page_node(physical_page_queue, physical_page_id);
+    //     if (node_to_remove != NULL) {
+    //         // 断链
+    //         if (node_to_remove->prev) node_to_remove->prev->next = node_to_remove->next;
+    //         if (node_to_remove->next) node_to_remove->next->prev = node_to_remove->prev;
+
+    //         if (node_to_remove == physical_page_queue->front) physical_page_queue->front = node_to_remove->next;
+    //         if (node_to_remove == physical_page_queue->rear) physical_page_queue->rear = node_to_remove->prev;
+
+    //         free(node_to_remove);
+    //         physical_page_queue->size--;
+    //     }
+    // }
+
+    // 从双端队列中删除该页面
+    remove_page_from_queue(physical_page_queue, physical_page_id);
 
     printf("finish freeing physical memory, page id = %d\n", physical_page_id);
 }
@@ -196,6 +435,11 @@ void visit_logical_memory_page(int logical_page, PCB *process, int write_flag)
     if (physical_page_id != NO_PHYSICAL_PAGE&& physical_page_id != -1)
     {
         printf("\nTLB hit: logical page %d -> physical page %d\n", logical_page, physical_page_id);
+        if(find_page_node(process->resident_set_queue, physical_page_id) != NULL){
+            move_to_front(process->resident_set_queue, find_page_node(process->resident_set_queue, physical_page_id));
+        }else{
+            insert_page(process->resident_set_queue, physical_page_id, RESIDENT_SET_SIZE);
+        }
         // 处理写操作
         if (write_flag)
         {
@@ -223,30 +467,34 @@ void visit_logical_memory_page(int logical_page, PCB *process, int write_flag)
 
     //  PageTable *pt = process -> pt;
     PageTableEntry *entry = get_page_table_entry(process->pt, logical_page, true);
-    physical_page_id = entry->physical_page;
-    int valid_bit = entry->valid_bit;
     if (entry == NULL)
     {
         printf("trigger a segmentation fault when visiting logical page %d.\n", logical_page);
         return;
     }
 
-    // 先检查该页是否在驻留集中
-    bool check_ppi_in_rss = false;
-    for (int i = 0; i < RESIDENT_SET_SIZE; i++)
-    {
-        if (process->resident_set[i] == physical_page_id)
-        {
-            // 该物理页在驻留集中
-            check_ppi_in_rss = true;
-            break;
-        }
-    }
+    physical_page_id = entry->physical_page;
+    int valid_bit = entry->valid_bit;
 
-    if (check_ppi_in_rss && valid_bit && physical_page_id != NO_PHYSICAL_PAGE)
+    // // 先检查该页是否在驻留集中
+    // bool check_ppi_in_rss = false;
+    // int victim_physical_page = -1;
+    // for (int i = 0; i < RESIDENT_SET_SIZE; i++)
+    // {
+    //     if (process->resident_set[i] == physical_page_id)
+    //     {
+    //         // 该物理页在驻留集中
+    //         check_ppi_in_rss = true;
+    //         break;
+    //     }
+    // }
+
+    if (find_page_node(process->resident_set_queue, physical_page_id)!=NULL)
     {
         // 如果在驻留集中/页表有对应的物理页且有效位有效，说明命中
+        // insert_page(process->resident_set_queue, physical_page_id, RESIDENT_SET_SIZE);
         printf("logical page %d -> physical page %d , page table look up hits.\n", logical_page, physical_page_id);
+        move_to_front(process->resident_set_queue, find_page_node(process->resident_set_queue, physical_page_id));
     }
     else
     {
@@ -261,33 +509,36 @@ void visit_logical_memory_page(int logical_page, PCB *process, int write_flag)
             return;
         }
 
-        // 更新该进程的驻留集情况
-        // 简单的使用FIFO对驻留集进行管理
-        int victim_physical_page = process->resident_set[process->rss_ptr];
-        if (victim_physical_page != -1)
+        if(process->resident_set_queue->size==RESIDENT_SET_SIZE) 
         {
-            // 找到要被替换出去的物理页所映射的逻辑页
-            printf("\nthe victim physical page %d need to be swapped out.\n", victim_physical_page);
-            for (int i = 0; i < FIRST_LEVEL_SIZE; i++)
+            int evicted_physical_page = evict_page_from_queue(process->resident_set_queue, RESIDENT_SET_SIZE);
+            if (evicted_physical_page != -1)
             {
-                SecondLevelPageTable *second = process->pt->entries[i];
-                if (second == NULL)
-                    continue;
-                for (int j = 0; j < SECOND_LEVEL_SIZE; j++)
-                {
-                    PageTableEntry *victim_entry = &second->entries[j];
-                    if (victim_entry->physical_page == victim_physical_page)
-                    {
-                        victim_entry->valid_bit = INVALID;
-                        victim_entry->physical_page = NO_PHYSICAL_PAGE;
-                        if (victim_entry->modified != NOT_MODIFIED)
-                        {
-                            printf("the victim physical page %d has been modified.\n", victim_physical_page);
-                            printf("write back into disk.\n");
-                            // 这里要补充写回逻辑
+                // 淘汰页并释放物理内存
+                printf("The physical page %d has been swapped out from resident set.\n", evicted_physical_page);
+                free_physical_memory(evicted_physical_page);
+
+                for(int i=0; i < MAX_LOGICAL_PAGES; i++) {
+                    PageTableEntry *e = get_page_table_entry(process->pt, i, false);
+                    if(e && e->valid_bit==VALID && e->physical_page==evicted_physical_page){
+                        // 写回处理（可选）
+                        if (e->modified == MODIFIED) {
+                            printf("Page %d has been modified, writing back to disk...\n", i);
+                            // 模拟写回操作，可调用 write_back_page(i, process); // 自定义函数
                         }
-                        victim_entry->modified = NOT_MODIFIED;
-                        free_physical_memory(victim_physical_page);
+
+                        // 更新页表项
+                        e->valid_bit = INVALID;
+                        e->physical_page = NO_PHYSICAL_PAGE;
+                        e->modified = NOT_MODIFIED;
+
+                        printf("Updated page table entry: logical page %d -> INVALID.\n", i);
+
+                        // 清除TLB中的对应项（假设你有 tlb_remove_entry 函数）
+                        tlb_delete_entry(process->tlb, i);
+                        printf("Removed logical page %d from TLB.\n", i);
+
+                        break; // 物理页只会映射一个逻辑页
                     }
                 }
             }
@@ -299,8 +550,9 @@ void visit_logical_memory_page(int logical_page, PCB *process, int write_flag)
         entry->valid_bit = VALID;
         entry->modified = NOT_MODIFIED;
         // 更新驻留集
-        process->resident_set[process->rss_ptr] = physical_page_id;
-        process->rss_ptr = (process->rss_ptr + 1) % RESIDENT_SET_SIZE;
+        // process->resident_set[process->rss_ptr] = physical_page_id;
+        // process->rss_ptr = (process->rss_ptr + 1) % RESIDENT_SET_SIZE;
+        insert_page(process->resident_set_queue, physical_page_id, RESIDENT_SET_SIZE);
     }
 
     if (write_flag)
@@ -480,14 +732,6 @@ void free_tlb(TLB *tlb)
     // 释放TLB
     free(tlb);
     printf("\nfinish freeing process %d 's TLB.\n", tlb->asid);
-}
-
-void memory_testing_task_1()
-{
-    init_memory();
-    PCB *process = create_process(1, 100);
-    visit_logical_memory_page(0, process, 0);
-    visit_logical_memory_page(0, process, 1);
 }
 
 // TLB测试用例 1.1：TLB未满时插入页号
@@ -770,6 +1014,72 @@ void test_TLB_3_2()
     }
 }
 
+void test_FIFO_replacement()
+{
+    printf("=== Test: FIFO Page Replacement ===\n");
+    // 创建一个进程，设定进程 优先级 为 1，运行时间为500个unit
+    PCB* process = create_process(1, 500);
+    if (DEBUG)
+        print_process_information();  // 打印初始的进程信息
+
+    int testing_page_sequence[8] = {1, 2, 3, 4, 5, 6, 7, 8};  // 页面访问顺序
+    int testing_length = 8;
+    current_policy = REPLACEMENT_FIFO;
+    // 访问页面序列，并在每次访问后打印进程信息
+    for (int i = 0; i < testing_length; i++)
+    {
+        printf("\nAccessing page %d\n", testing_page_sequence[i]);
+        // print_process_information();  // 打印当前的进程信息
+        print_queue(process->resident_set_queue);
+
+        // 访问逻辑内存中的页面，并触发换出策略
+        visit_logical_memory_page(testing_page_sequence[i], process, 0); 
+
+        // 打印进程信息，查看内存管理和页面替换情况
+        // print_process_information();
+        print_queue(process->resident_set_queue);
+    }
+
+    // 删除进程，释放内存
+    delete_process(process);
+    printf("Test FIFO Page Replacement PASSED\n");
+}
+void test_LRU_replacement()
+{
+    printf("=== Test: LRU Page Replacement ===\n");
+
+    // 创建一个进程，设定进程 优先级 为 1，运行时间为500个unit
+    PCB* process = create_process(1, 500);
+    if (DEBUG)
+        print_process_information();  // 打印初始的进程信息
+
+    int testing_page_sequence[8] = {1, 2, 3, 4, 1, 2, 7, 3};  // 页面访问顺序
+    int testing_length = 8;
+    current_policy = REPLACEMENT_LRU;
+    // 访问页面序列，并在每次访问后打印进程信息
+    for (int i = 0; i < testing_length; i++)
+    {
+        printf("\nAccessing page %d\n", testing_page_sequence[i]);
+        // print_process_information();  // 打印当前的进程信息
+        print_queue(process->resident_set_queue);
+
+        // 访问逻辑内存中的页面，并触发换出策略
+        visit_logical_memory_page(testing_page_sequence[i], process, 0); 
+
+        // 打印进程信息，查看内存管理和页面替换情况
+        // print_process_information();
+        print_queue(process->resident_set_queue);
+    }
+
+    // 删除进程，释放内存
+    delete_process(process);
+    printf("Test LRU Page Replacement PASSED\n");
+}
+void test_LRU_3()
+{
+
+}
+
 //  访问合法逻辑页，不触发缺页
 void memory_testing_task_1(void)
 {
@@ -818,4 +1128,26 @@ void memory_testing_task_4(void)
 void memory_testing_task_5(void)
 {
 
+    current_policy = REPLACEMENT_LRU;
+
+    // 插入一些页面
+    printf("Insert page 1: %d\n", insert_page(physical_page_queue, 1, 3)); // 不会替换
+    print_queue(physical_page_queue);
+    printf("Insert page 2: %d\n", insert_page(physical_page_queue, 2, 3)); // 不会替换
+    print_queue(physical_page_queue);
+    printf("Insert page 3: %d\n", insert_page(physical_page_queue, 3, 3)); // 不会替换
+    print_queue(physical_page_queue);
+    printf("Insert page 4: %d\n", insert_page(physical_page_queue, 4, 3)); // 会替换页面 1
+    print_queue(physical_page_queue);
+
+    // 设置替换策略为 FIFO
+    current_policy = REPLACEMENT_FIFO;
+
+    // 插入更多页面，测试 FIFO 替换
+    printf("Insert page 5 (FIFO): %d\n", insert_page(physical_page_queue, 5, 3)); // 会替换页面 2
+    print_queue(physical_page_queue);
+
+    // 释放资源
+    free_page_queue(physical_page_queue);
+    return 0;
 }

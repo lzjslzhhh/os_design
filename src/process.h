@@ -23,12 +23,13 @@ typedef struct pcb{
     int process_state;                  // 进程状态
     int time_need;                      // 进程目前所需的运行时间
     int time_used;                      // 进程目前已经运行的时间
-    int rss_ptr;                        // 该进程的驻留集指针
-    int resident_set[RESIDENT_SET_SIZE];// 记录驻留的物理页号，内部元素的数量等于页表中有效位为1的表项的数量
+    // int rss_ptr;                        // 该进程的驻留集指针
+    // int resident_set[RESIDENT_SET_SIZE];// 记录驻留的物理页号，内部元素的数量等于页表中有效位为1的表项的数量
     PageTable *pt;                      // 该进程的页表
     PCB *next;                          // 仍然是用链表的形式对PCB进行管理
     PCB *qnext;                         // 记录在（RR/FCFS）队列中的下一个元素
-    TLB *tlb;                            // TLB
+    TLB *tlb;                           // TLB
+    PageQueue *resident_set_queue;      // 驻留集队列
 }PCB;
 
 //第一种管理方式，使用时间片轮转进行管理

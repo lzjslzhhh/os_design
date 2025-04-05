@@ -49,7 +49,7 @@ void print_process_information()
     }
     while(current_process != NULL)
     {
-        printf("Process pid = %d, priority = %d, process state = %d, time need = %d, time used = %d. ", 
+        printf("\nProcess pid = %d, priority = %d, process state = %d, time need = %d, time used = %d. ", 
             current_process -> pid, current_process -> priority, current_process -> process_state , current_process -> time_need, current_process -> time_used);
         printf("Process resident set: [ ");
         for(int i=0;i<RESIDENT_SET_SIZE;i++)
@@ -76,6 +76,7 @@ PCB* create_process(int priority, int time)
     memset(new_process -> resident_set, -1, sizeof(new_process -> resident_set));
     new_process -> pt = create_page_table(new_process -> pid);
     new_process -> tlb = create_tlb(new_process -> pid); 
+    new_process -> resident_set_queue = create_page_queue();
     new_process -> qnext = NULL;
 
     //将该进程插入到目前已创建的进程链表中，便于统一打印其状态
@@ -124,6 +125,7 @@ void delete_process(PCB* process)
     //删除该项后，释放创建该进程所占用的内存，注意物理页的释放包含在了释放页表的函数里，不需要单独写
     free_page_table(process -> pid, process -> pt);
     free_tlb(process -> tlb);
+    free_page_queue(process -> resident_set_queue);
     printf("finish freeing process %d.\n", process -> pid);
     free(process);
 }
@@ -212,12 +214,12 @@ PCB * dequeue_fcfsQ()
 //     //这里简单测试内存管理的内容
 //     printf("now begin the testing task 2.\n");
 //     PCB* process = create_process(1, 500);
-//     int testing_page_sequence[8] = {1,2,3,4,1,2,7};
+//     int testing_page_sequence[8] = {1,2,3,4,1,2,7,3};
 //     int testing_length = 8;
 //     for (int i=0;i<testing_length; i++)
 //     {
 //         print_process_information();
-//         visit_logical_memory_page(testing_page_sequence[i], process);
+//         visit_logical_memory_page(testing_page_sequence[i], process, 0);
 //         print_process_information();
 //     }
 //     delete_process(process);

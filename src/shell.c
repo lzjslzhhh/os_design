@@ -53,6 +53,16 @@ void start_shell(void)
         //     test_1_1(); // 进程切换时TLB刷新验证
         //     test_1_2(); // ASID支持验证
         // }
+        // LRU 测试
+        else if (strcmp(input, "lru") == 0)
+        {
+            test_LRU_replacement();
+        }
+        // FIFO 测试
+        else if (strcmp(input, "fifo")==0)
+        {
+            test_FIFO_replacement();
+        }
         else if(strcmp(input, "memtest1") == 0)
         {
             memory_testing_task_1();
